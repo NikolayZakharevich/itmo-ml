@@ -2,6 +2,7 @@ import math
 from enum import Enum
 from functools import reduce
 from itertools import repeat
+from typing import List
 
 
 class Dist(Enum):
@@ -90,25 +91,28 @@ def average(d_train: list, n: int, m: int) -> float:
 
 
 def solve(d_train: list, n: int, m: int, q: list, h_or_k: int, dist_type: Dist, kernel_type: Kernel,
-          window_type: Window) -> float:
+          window_type: Window, n_classes=1) -> List[float]:
     # check if point exists
     su, cnt = reduce(lambda acc, x: (acc[0] + x[m], acc[1] + 1) if eq(x, q, m) else acc, d_train, (0.0, 0))
     if cnt > 0:
-        return su / cnt
+        return [su / cnt] * n_classes
 
     # calc_nadaraya_watson
     d_train = sorted(d_train, key=lambda x: calc_distance(dist_type, x, q, m))
 
     h = float(h_or_k) if window_type == Window.FIXED else calc_distance(dist_type, d_train[h_or_k], q, m)
     if h == 0.0:
-        return average(d_train, n, m)
+        return [average(d_train, n, m)] * n_classes
 
-    num, denum = 0.0, 0.0
-    for x in d_train:
-        kern_res = calc_kernel(kernel_type, calc_distance(dist_type, x, q, m), h)
-        num += x[m] * kern_res
-        denum += kern_res
-    return average(d_train, n, m) if denum == 0 else (0 if num == 0 else num / denum)
+    res = []
+    for idx in range(n_classes):
+        num, denum = 0.0, 0.0
+        for x in d_train:
+            kern_res = calc_kernel(kernel_type, calc_distance(dist_type, x, q, m), h)
+            num += x[m + idx] * kern_res
+            denum += kern_res
+        res.append(average(d_train, n, m) if denum == 0 else (0 if num == 0 else num / denum))
+    return res
 
 
 if __name__ == '__main__':
