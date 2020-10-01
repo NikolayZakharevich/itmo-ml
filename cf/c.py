@@ -1,5 +1,7 @@
 import math
 from enum import Enum
+from functools import reduce
+from itertools import repeat
 
 
 class Dist(Enum):
@@ -38,21 +40,11 @@ CONST_2_DIV_PI = 2 / CONST_PI
 
 def calc_distance(d: Dist, x: list, y: list, m: int) -> float:
     if d == Dist.MANHATTAN:
-        su = 0
-        for i in range(0, m):
-            su += abs(x[i] - y[i])
-        return su
+        return sum(abs(x[i] - y[i]) for i in range(0, m))
     elif d == Dist.EUCLIDEAN:
-        su = 0.0
-        for i in range(0, m):
-            diff = x[i] - y[i]
-            su += diff * diff
-        return math.sqrt(su)
+        return math.sqrt(sum((x[i] - y[i]) * (x[i] - y[i]) for i in range(0, m)))
     elif d == Dist.CHEBYSHEV:
-        ma = 0
-        for i in range(0, m):
-            ma = max(ma, abs(x[i] - y[i]))
-        return ma
+        return max(abs(x[i] - y[i]) for i in range(0, m))
 
 
 def calc_kernel(k: Kernel, d: float, h: float) -> float:
@@ -90,28 +82,17 @@ def calc_kernel(k: Kernel, d: float, h: float) -> float:
 
 
 def eq(x: list, y: list, m: int) -> bool:
-    for i in range(0, m):
-        if x[i] != y[i]:
-            return False
-    return True
+    return all(x[i] == y[i] for i in range(0, m))
 
 
 def average(d_train: list, n: int, m: int) -> float:
-    su = 0
-    for i in range(0, n):
-        su += d_train[i][m]
-    return su / n
+    return sum(d_train[i][m] for i in range(0, n)) / n
 
 
 def solve(d_train: list, n: int, m: int, q: list, h_or_k: int, dist_type: Dist, kernel_type: Kernel,
           window_type: Window) -> float:
     # check if point exists
-    su = 0.0
-    cnt = 0
-    for x in d_train:
-        if eq(x, q, m):
-            su += x[m]
-            cnt += 1
+    su, cnt = reduce(lambda acc, x: (acc[0] + x[m], acc[1] + 1) if eq(x, q, m) else acc, d_train, (0.0, 0))
     if cnt > 0:
         return su / cnt
 
@@ -122,9 +103,7 @@ def solve(d_train: list, n: int, m: int, q: list, h_or_k: int, dist_type: Dist, 
     if h == 0.0:
         return average(d_train, n, m)
 
-    num = 0.0
-    denum = 0.0
-
+    num, denum = 0.0, 0.0
     for x in d_train:
         kern_res = calc_kernel(kernel_type, calc_distance(dist_type, x, q, m), h)
         num += x[m] * kern_res
@@ -134,9 +113,8 @@ def solve(d_train: list, n: int, m: int, q: list, h_or_k: int, dist_type: Dist, 
 
 if __name__ == '__main__':
     n, m = map(int, input().split())
-    d_train = []
-    q = []
-    for _ in range(n):
+    d_train, q = [], []
+    for _ in repeat(None, n):
         d_train.append(list(map(int, input().split())))
     q = list(map(int, input().split()))
     dist_type = Dist(input())

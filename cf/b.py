@@ -1,14 +1,11 @@
-if __name__ == '__main__':
-    n = int(input())
+from itertools import repeat
+from typing import List
 
-    a = []
+
+def solve(a: List[List[int]], n: int):
+    all = 0
     c_row = [0] * n
     c_col = [0] * n
-
-    all = 0
-
-    for _ in range(n):
-        a.append(list(map(int, input().split())))
 
     for i in range(n):
         for j in range(n):
@@ -38,5 +35,14 @@ if __name__ == '__main__':
     recall_w /= all
     numerator = prec_w * recall_w
     f_macro = 2 * prec_w * recall_w / (prec_w + recall_w) if numerator > 0 else 0.0
+    return f_macro, f_micro
 
+
+if __name__ == '__main__':
+    a = []
+    n = int(input())
+    for _ in repeat(None, n):
+        a.append(list(map(int, input().split())))
+
+    f_macro, f_micro = solve(a, n)
     print("{0:0.20f}\n{1:0.20f}".format(f_macro, f_micro))
