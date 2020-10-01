@@ -8,7 +8,23 @@ from cf.c import Dist, Kernel, Window, solve as cf_c_solve
 from utils.data_helper import read_and_prepare_data
 
 # https://www.openml.org/d/180
-FILE_DATASET_TRAIN = '../datasets/dataset_184_covertype_100.csv'
+#
+# naive:   HyperParams(dist_type=<Dist.CHEBYSHEV: 'chebyshev'>, kernel_type=<Kernel.SIGMOID: 'sigmoid'>,
+# window_type=<Window.VARIABLE: 'variable'>, h_or_k=1)
+#
+# one_hot: HyperParams(dist_type=<Dist.MANHATTAN: 'manhattan'>, kernel_type=<Kernel.TRIWEIGHT: 'triweight'>,
+# window_type=<Window.FIXED: 'fixed'>, h_or_k=0.05)
+FILE_DATASET_TRAIN_BAD = '../datasets/dataset_184_covertype_100.csv'
+
+# https://www.openml.org/d/40476
+#
+# naive: Best hyper parameters:  HyperParams(dist_type=<Dist.MANHATTAN: 'manhattan'>, kernel_type=<Kernel.TRIANGULAR:
+# 'triangular'>, window_type=<Window.FIXED: 'fixed'>, h_or_k=0.45)
+#
+# one_hot: Best hyper parameters:  HyperParams(dist_type=<Dist.MANHATTAN: 'manhattan'>,
+# kernel_type=<Kernel.EPANECHNIKOV: 'epanechnikov'>, window_type=<Window.FIXED: 'fixed'>,  h_or_k=0.2)
+FILE_DATASET_TRAIN_GOOD = '../datasets/dataset_thyroid-allhypo.csv'
+
 
 class HyperParams(NamedTuple):
     dist_type: Dist
@@ -28,7 +44,7 @@ def get_hyper_params_set(data: Data) -> List[HyperParams]:
         for kernel_type in Kernel:
             for window_type in Window:
                 if window_type == Window.FIXED:
-                    h_or_k_all = np.arange(0, 1, 0.1)
+                    h_or_k_all = np.arange(0, 1, 0.05)
                 else:
                     h_or_k_all = range(1, len(data.d_train) - 1, 10)
                 for h_or_k in h_or_k_all:
@@ -78,6 +94,7 @@ def calc_confusion_matrix(data: Data, hyper_params: HyperParams, use_one_hot: bo
             d_train = [x for idx_x, x in enumerate(data.d_train) if idx_x != idx_q]
             q_predicted_class = regression_reduction_naive(d_train, hyper_params, q)
         matrix[get_class(q)][q_predicted_class] += 1
+    print(hyper_params)
     return matrix
 
 
@@ -89,20 +106,21 @@ def show_f_measure_dependence(data: Data, hyper_params: HyperParams, use_one_hot
         h_or_k_all = np.arange(0, 1, 0.05)
         h_or_k_label = 'window width'
     else:
-        h_or_k_all = range(1, len(data.d_train) - 2, 1)
+        h_or_k_all = range(0, 10, 1)
         h_or_k_label = 'number of neighbours'
 
     for h_or_k in h_or_k_all:
         hp = HyperParams(hyper_params.dist_type, hyper_params.kernel_type, hyper_params.window_type, h_or_k)
         f_macro, f_micro = cf_b_solve(list(calc_confusion_matrix(data, hp, use_one_hot)), len(data.classes))
+        print(h_or_k, f_macro, f_micro)
         f_macro_all.append(f_macro)
         f_micro_all.append(f_micro)
 
     plt.xlabel(h_or_k_label, fontsize=16)
     plt.ylabel('F-measure', fontsize=16)
     plt.title('F-measure dependence from ' + h_or_k_label)
-    plt.plot(h_or_k_all, f_micro_all, label='F-micro')
     plt.plot(h_or_k_all, f_macro_all, label='F-macro')
+    plt.plot(h_or_k_all, f_micro_all, label='F-micro')
     plt.legend()
     plt.show()
 
@@ -117,11 +135,9 @@ def run(file_dataset_train, use_one_hot: bool = True):
 
     best_hyper_params = find_best_hyper_params(data, get_hyper_params_set(data), use_one_hot)
     print("Best hyper parameters: ", best_hyper_params)
+
     show_f_measure_dependence(data, best_hyper_params, use_one_hot)
 
 
 if __name__ == '__main__':
-    run(FILE_DATASET_TRAIN, False)
-
-# Best hyper parameters:  HyperParams(dist_type=<Dist.MANHATTAN: 'manhattan'>, kernel_type=<Kernel.UNIFORM: 'uniform'>, window_type=<Window.VARIABLE: 'variable'>, h_or_k=3)
-# Best hyper parameters:  HyperParams(dist_type=<Dist.MANHATTAN: 'manhattan'>, kernel_type=<Kernel.UNIFORM: 'uniform'>, window_type=<Window.FIXED: 'fixed'>, h_or_k=0.8)
+    run(FILE_DATASET_TRAIN_GOOD, False)
