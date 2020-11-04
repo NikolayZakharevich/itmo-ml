@@ -4,7 +4,7 @@ from math import copysign
 from typing import List, NamedTuple
 
 INITIAL = 1e-5
-MU = 1e7
+MU = 1.5e7
 
 
 class Data(NamedTuple):
@@ -19,7 +19,7 @@ def normalize(values: List[List[float]], n: int, m: int):
     coeffs = []
 
     for j in range(0, m):
-        ma = max(values, key=operator.itemgetter(j))[j]
+        ma = max(values, key=lambda r: abs(r[j]))[j]
         for i in range(n):
             res[i][j] = values[i][j] / ma
         coeffs.append(ma)
@@ -88,39 +88,6 @@ def read_input() -> Data:
     return Data(normalized, n, m, coeffs)
 
 
-def solve_local():
-    global INITIAL
-    filenames = ['0.40_0.65.txt', '0.42_0.63.txt', '0.48_0.68.txt', '0.52_0.70.txt',
-                 '0.57_0.79.txt', '0.60_0.73.txt', '0.60_0.80.txt', '0.62_0.80.txt']
-    for filename in filenames:
-        with open('../datasets/LR-CF/' + filename, "r") as f:
-            m = int(f.readline())
-            n = int(f.readline())
-            d_train = []
-            for _ in range(n):
-                d_train.append(list(map(int, f.readline().split())))
-            normalized, coeffs = normalize(d_train, n, m)
-            data = Data(normalized, n, m, coeffs)
-
-            w1 = gradient_descent(data)
-            for j in range(data.m):
-                w1[j] = w1[j] / data.norm_coeffs[j]
-
-            INITIAL = INITIAL * -1
-            w2 = gradient_descent(data)
-            for j in range(data.m):
-                w2[j] = w2[j] / data.norm_coeffs[j]
-
-            w = w1 if smape(data, w1) < smape(data, w2) else w2
-
-            n = int(f.readline())
-            d_train = []
-            for _ in range(n):
-                d_train.append(list(map(int, f.readline().split())))
-            data = Data(d_train, n, m, [])
-            print(filename + " — ", smape(data, w))
-
-
 def solve(data: Data):
     global INITIAL
 
@@ -141,5 +108,4 @@ def solve(data: Data):
 
 
 if __name__ == '__main__':
-    solve_local()
-    # print('\n'.join('{0:0.20f}'.format(w_j) for w_j in solve(read_input())))
+    print('\n'.join('{0:0.20f}'.format(w_j) for w_j in solve(read_input())))
