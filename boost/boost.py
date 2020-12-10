@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from sklearn.metrics import zero_one_loss, accuracy_score
-from math import log, isclose
+from math import log
 from sklearn.base import BaseEstimator
 from copy import deepcopy
 from sklearn.tree import DecisionTreeClassifier
@@ -13,6 +13,8 @@ COLOR_POINT_P = '#052609'
 
 COLOR_AREA_N = '#8C1554'
 COLOR_AREA_P = '#2F621B'
+
+BASE_CLASSIFIER_MAX_DEPTH = 3
 
 
 def read_dataset(filename):
@@ -32,34 +34,27 @@ def broaden_max(bounds, dx, dy):
 
 
 class AdaBoost(BaseEstimator):
-    def __init__(self, base_clf, iteration_cnt=0):
+    def __init__(self, base_clf):
         self.base_clf = base_clf
-        self.iteration_cnt = iteration_cnt
-        self._clear()
+        self.clfs_ = []
+        self.clf_weights = []
+        self.sample_weight = []
 
     def fit_iter(self, X, y):
-        if len(self.clf_weights) > 0 and (self.clf_weights[-1] == 1 or self.clf_weights[-1] == -1):
-            return
-
         n, m = X.shape
         sample_weight = self.sample_weight if len(self.sample_weight) > 0 else np.repeat(1 / n, n)
 
         clf = deepcopy(self.base_clf)
         clf.fit(X, y, sample_weight=sample_weight)
+
         y_pred = clf.predict(X)
-        error = zero_one_loss(y, y_pred, normalize=False, sample_weight=sample_weight)
+        N_t = zero_one_loss(y, y_pred, sample_weight=sample_weight, normalize=False)
+        b_t = 0.5 * log((1 - N_t) / N_t)
+        sample_weight *= np.exp(-b_t * (y * y_pred))
 
-        alpha = 0.5 * log((1 - error) / error)
-        self.clf_weights.append(alpha)
-        sample_weight *= np.exp(-alpha * (y * y_pred))
         self.sample_weight = sample_weight / np.sum(sample_weight)
-
+        self.clf_weights.append(b_t)
         self.clfs_.append(clf)
-
-    def fit(self, X, y):
-        self._clear()
-        for _ in range(self.iteration_cnt):
-            self.fit_iter(X, y)
 
     def predict(self, X):
         n, m = X.shape
@@ -68,62 +63,56 @@ class AdaBoost(BaseEstimator):
             answers += w * clf.predict(X)
         return np.sign(answers)
 
-    def _try_end_fit(self, result, error, clf):
-        if isclose(error, 0.5 * result + 0.5):
-            self.clfs_ = [clf]
-            self.clf_weights = [result]
 
-    def _clear(self):
-        self.clfs_ = []
-        self.clf_weights = []
-        self.sample_weight = []
+def show_steps(X, y, filename):
+    x_step = 0.01
+    y_step = 0.01
+    x_min, y_min = broaden_min(np.amin(X, 0), x_step, y_step)
+    x_max, y_max = broaden_max(np.amax(X, 0), x_step, y_step)
 
-
-def show_steps(X, y, step_x, step_y=0.01):
-    x_min, y_min = broaden_min(np.amin(X, 0), step_x, step_y)
-    x_max, y_max = broaden_max(np.amax(X, 0), step_x, step_y)
-    plt.figure(figsize=(10, 10))
     plt.xlim(x_min, x_max)
     plt.ylim(y_min, y_max)
+    plt.xlabel('x')
+    plt.ylabel('y')
 
-    xx, yy = np.meshgrid(np.arange(x_min, x_max, step_x), np.arange(y_min, y_max, step_y))
+    x_all, y_all = np.meshgrid(np.arange(x_min, x_max, x_step), np.arange(y_min, y_max, y_step))
 
-    points = [55]
-    # points = [1, 2, 3, 5, 8, 13, 21, 34, 55]
-    clf = AdaBoost(DecisionTreeClassifier(max_depth=1))
-    for iter in range(56):
+    points = [1, 2, 3, 5, 8, 13, 21, 34, 55]
+    clf = AdaBoost(DecisionTreeClassifier(max_depth=BASE_CLASSIFIER_MAX_DEPTH))
+    for it in range(1, 56):
         clf.fit_iter(X, y)
-        if iter in points:
-            zz = np.array(clf.predict(np.c_[xx.ravel(), yy.ravel()])).reshape(xx.shape)
-            plt.pcolormesh(xx, yy, zz, cmap=ListedColormap([COLOR_AREA_N, COLOR_AREA_P]))
+        if it in points:
+            z_all = np.array(clf.predict(np.c_[x_all.ravel(), y_all.ravel()])).reshape(x_all.shape)
+            plt.pcolormesh(x_all, y_all, z_all, cmap=ListedColormap([COLOR_AREA_N, COLOR_AREA_P]))
 
-            plt.scatter(*X[y == -1].T, color=COLOR_POINT_N, s=100)
-            plt.scatter(*X[y == 1].T, color=COLOR_POINT_P, s=100)
+            plt.title('Iteration #%d "%s"' % (it, filename))
+            plt.scatter(*X[y == -1].T, color=COLOR_POINT_N, s=10)
+            plt.scatter(*X[y == 1].T, color=COLOR_POINT_P, s=10)
             plt.show()
 
 
-def show_graph(X, y):
+def show_graph(X, y, filename):
     iterations = []
     accuracies = []
-    clf = AdaBoost(DecisionTreeClassifier(max_depth=5))
-    for iteration in range(1, 101):
+    clf = AdaBoost(DecisionTreeClassifier(max_depth=BASE_CLASSIFIER_MAX_DEPTH))
+    for iteration in range(1, 56):
         iterations.append(iteration)
         clf.fit_iter(X, y)
         accuracies.append(accuracy_score(y, clf.predict(X)))
 
     plt.xlabel('Iterations', fontsize=16)
     plt.ylabel('Accuracy', fontsize=16)
-    plt.title('Accuracy dependence on count')
+    plt.title('Accuracy dependence on count "%s"' % filename)
     plt.plot(iterations, accuracies)
     plt.show()
 
 
-def run(filename: str, draw_step: float):
+def run(filename: str):
     X, y = read_dataset(filename)
-    show_steps(X, y, draw_step)
-    show_graph(X, y)
+    show_steps(X, y, filename)
+    show_graph(X, y, filename)
 
 
 if __name__ == '__main__':
-    run('chips.csv', 0.01)
-    run('geyser.csv', 1)
+    run('chips.csv')
+    run('geyser.csv')
