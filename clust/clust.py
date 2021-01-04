@@ -12,8 +12,6 @@ DATASET_FILENAME = 'dataset_191_wine.csv'
 
 colors = ["b", "g", "r"]
 
-N_CLASSES = 3
-
 LABEL_IDX = 0
 DELTA_STEPS = 20
 INF = 10000000
@@ -34,13 +32,10 @@ DISTANCE_TYPE = Dist.EUCLIDEAN
 
 def read_data():
     data = pd.read_csv(DATASET_FILENAME)
-    data.head()
-    Xs = data[data.columns[1:]]
-    Xs.head()
-    classes = np.unique(data.loc[:, data.columns[LABEL_IDX]])
-    X_norm = MinMaxScaler(copy=True, feature_range=(0, 1)).fit_transform(Xs)
-    y = data.loc[:, data.columns[LABEL_IDX]].apply(lambda status: np.where(classes == status)[0][0])
-    return X_norm, y
+    unique_classes = np.unique(data.loc[:, data.columns[LABEL_IDX]])
+    X = MinMaxScaler(copy=True, feature_range=(0, 1)).fit_transform(data[data.columns[1:]])
+    y = data.loc[:, data.columns[LABEL_IDX]].apply(lambda y_i: np.where(unique_classes == y_i)[0][0])
+    return X, y
 
 
 def display_clusters(X_reduced, labels, title):
@@ -52,9 +47,6 @@ def display_clusters(X_reduced, labels, title):
         cur_ys = X_reduced[labels == label, 1]
         plt.scatter(cur_xs, cur_ys, color=colors[i], alpha=0.5, label=label)
     plt.title(title)
-    plt.xlabel("X координата")
-    plt.ylabel("Y координата")
-    plt.legend()
     plt.show()
 
 
@@ -113,14 +105,7 @@ class State():
 
         P_distances = []
         for u, v in self.P:
-            u = self.find_set(u)
-            v = self.find_set(v)
-            if u != v:
-                P_distances.append((u, v, self.distances[u][v]))
-
-        P_distances.sort(key=lambda x : x[-1])
-        print(self.delta, self.P)
-        print(P_distances, end="\n\n")
+            P_distances.append((u, v, self.distances[u][v]))
         u, v, _dist = min(P_distances, key=lambda x: x[-1])
         self.union_sets(u, v)
 
@@ -142,7 +127,6 @@ class State():
             self.parent[v] = u
             if self.rank[u] == self.rank[v]:
                 self.rank[u] += 1
-
         self.parents.remove(v)
 
         P = []
@@ -193,13 +177,12 @@ if __name__ == '__main__':
     X_reduced = PCA(n_components=2).fit_transform(X)
 
     state = State(X)
-    while len(state.parents) > N_CLASSES:
+    while len(state.parents) > len(np.unique(y)):
         state.next_iter()
 
     clusters = [state.find_set(x) for x in range(len(X))]
-    classes, counts = np.unique(clusters, return_counts=True)
-    print(counts)
-    y_clustered = list(map(lambda status: np.where(classes == status)[0][0], clusters))
+    clustered_classes = np.unique(clusters)
+    y_clustered = list(map(lambda status: np.where(clustered_classes == status)[0][0], clusters))
 
-    display_clusters(X_reduced, y, "Настоящие метки")
-    display_clusters(X_reduced, y_clustered, "Кластеризованные метки")
+    display_clusters(X_reduced, y, 'Real labels')
+    display_clusters(X_reduced, y_clustered, 'Clustered labels')
