@@ -1,20 +1,20 @@
 import random
 from enum import Enum
+from itertools import permutations, takewhile
 from typing import List, Set, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
+from sklearn.metrics import f1_score, calinski_harabasz_score
 from sklearn.preprocessing import MinMaxScaler
 
 DATASET_FILENAME = 'dataset_191_wine.csv'
 
-colors = ["b", "g", "r"]
-
 LABEL_IDX = 0
 DELTA_STEPS = 20
-INF = 10000000
+DISTANCE_INF = 10000000
 
 
 class Dist(Enum):
@@ -26,9 +26,7 @@ class Dist(Enum):
 DISTANCE_TYPE = Dist.EUCLIDEAN
 
 
-#
 # Read and show data:
-#
 
 def read_data():
     data = pd.read_csv(DATASET_FILENAME)
@@ -39,6 +37,7 @@ def read_data():
 
 
 def display_clusters(X_reduced, labels, title):
+    colors = ["b", "g", "r"]
     plt.figure(figsize=(12, 12))
     unique_labels = np.unique(labels)
     for i in range(len(unique_labels)):
@@ -50,11 +49,9 @@ def display_clusters(X_reduced, labels, title):
     plt.show()
 
 
-#
-# Algo state:
-#
+# Clustering algorithm:
 
-class State():
+class HierarchicalClustering():
     distances: np.ndarray
     set_sizes: np.ndarray
     parent: List[int]
@@ -78,11 +75,11 @@ class State():
         self.parent = parent
         self.rank = [0] * n
         self.parents = set(range(n))
-        self.delta = INF
+        self.delta = DISTANCE_INF
         self.P = []
 
     def calc_delta(self):
-        delta = INF
+        delta = DISTANCE_INF
         for i in range(DELTA_STEPS):
             u = random.choice(tuple(self.parents))
             v = random.choice(tuple(self.parents))
@@ -148,9 +145,7 @@ class State():
         self.set_sizes[u] += self.set_sizes[v]
 
 
-#
 # Distance:
-#
 
 def calc_distance(x: List[float], y: List[float]) -> float:
     if DISTANCE_TYPE == Dist.MANHATTAN:
@@ -161,7 +156,7 @@ def calc_distance(x: List[float], y: List[float]) -> float:
         return max(abs(x[i] - y[i]) for i in range(0, len(x)))
 
 
-def distance_ward(state: State, u, v, s) -> float:
+def distance_ward(state: HierarchicalClustering, u, v, s) -> float:
     U = state.set_sizes[u]
     V = state.set_sizes[v]
     S = state.set_sizes[s]
@@ -172,17 +167,39 @@ def distance_ward(state: State, u, v, s) -> float:
     return aU * state.distances[u][s] + aV * state.distances[v][s] + beta * state.distances[u][v]
 
 
+# Helpers:
+
+def calc_external_score(y_true: List[int], y_pred) -> float:
+    return f1_score(y_true, y_pred, average='micro')
+
+
+def calc_internal_score(X, y_pred) -> float:
+    return calinski_harabasz_score(X, y_pred)
+
+
+def apply_mapping(values: List[int], mapping: List[int]) -> List[int]:
+    return list(map(lambda x: np.where(np.array(mapping) == x)[0][0], values))
+
+
+# Main:
+
+def run_clustering(X):
+    clustering_state = HierarchicalClustering(X)
+    while len(clustering_state.parents) > len(np.unique(y)):
+        clustering_state.next_iter()
+
+    clusters = [clustering_state.find_set(x) for x in range(len(X))]
+    clustered_classes = list(max(permutations(np.unique(clusters)),
+                                 key=lambda mapping: calc_external_score(y, apply_mapping(clusters, mapping))))
+    return apply_mapping(clusters, clustered_classes)
+
+
 if __name__ == '__main__':
     X, y, = read_data()
     X_reduced = PCA(n_components=2).fit_transform(X)
-
-    state = State(X)
-    while len(state.parents) > len(np.unique(y)):
-        state.next_iter()
-
-    clusters = [state.find_set(x) for x in range(len(X))]
-    clustered_classes = np.unique(clusters)
-    y_clustered = list(map(lambda status: np.where(clustered_classes == status)[0][0], clusters))
+    y_clustered = run_clustering(X)
 
     display_clusters(X_reduced, y, 'Real labels')
     display_clusters(X_reduced, y_clustered, 'Clustered labels')
+    print("External score: %.2f" % calc_external_score(y, y_clustered))
+    print("Internal score: %.2f" % calc_internal_score(X, y_clustered))
