@@ -1,10 +1,13 @@
 import tensorflow as tf
 import numpy as np
+import matplotlib.pyplot as plt
 from typing import NamedTuple
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix, accuracy_score
-import matplotlib.pyplot as plt
+from tensorflow.python.keras import Input, Sequential
+from tensorflow.python.keras.layers import Conv2D, MaxPooling2D, Flatten, Dropout, Dense
 
 # TASK CONFIG
+
 ACTIVATION_DENSE = 'softmax'
 LOSS = 'sparse_categorical_crossentropy'
 METRICS = ['accuracy']
@@ -96,23 +99,23 @@ def display_confusion_matrix_images(x, y_true, predicts):
     plt.show()
 
 
-def build_model(architecture: Architecture) -> tf.keras.Sequential:
+def build_model(architecture: Architecture) -> Sequential:
     n_neurons, dropout_rate = architecture
     model = tf.keras.Sequential()
-    model.add(tf.keras.Input(shape=SHAPE))
-    model.add(tf.keras.layers.Conv2D(n_neurons, kernel_size=2, activation=ACTIVATION_CONV2D))
-    model.add(tf.keras.layers.MaxPooling2D(pool_size=(2, 2)))
-    model.add(tf.keras.layers.Conv2D(n_neurons, kernel_size=3, activation=ACTIVATION_CONV2D))
-    model.add(tf.keras.layers.Flatten())
-    model.add(tf.keras.layers.Dropout(dropout_rate))
-    model.add(tf.keras.layers.Dense(N_CLASSES, activation=ACTIVATION_DENSE))
+    model.add(Input(shape=SHAPE))
+    model.add(Conv2D(n_neurons, kernel_size=2, activation=ACTIVATION_CONV2D))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(n_neurons, kernel_size=3, activation=ACTIVATION_CONV2D))
+    model.add(Flatten())
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(N_CLASSES, activation=ACTIVATION_DENSE))
     model.compile(optimizer=OPTIMIZER,
                   loss=LOSS,
                   metrics=METRICS)
     return model
 
 
-def fit(model: tf.keras.Sequential, data: Data) -> tf.keras.Sequential:
+def fit(model: Sequential, data: Data) -> Sequential:
     x_train, y_train, x_test, y_test = data
     model.fit(x_train, y_train, epochs=EPOCHS, verbose=1, validation_data=(x_test, y_test))
     return model
