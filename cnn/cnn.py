@@ -12,7 +12,7 @@ N_CLASSES = 10
 SHAPE = (28, 28, 1)
 
 ACTIVATION_CONV2D = 'relu'
-EPOCHS = 5
+EPOCHS = 10
 OPTIMIZER = 'adam'
 
 
@@ -50,8 +50,8 @@ def fix_data(data) -> Data:
 
 
 def architecture_gen():
-    for n_neurons in range(30, 35):
-        for dropout_rate in np.linspace(0.3, 0.7, 5):
+    for n_neurons in range(30, 32):
+        for dropout_rate in np.linspace(0.3, 0.7, 3):
             yield Architecture(n_neurons, dropout_rate)
 
 
@@ -115,7 +115,7 @@ def build_model(architecture: Architecture) -> tf.keras.Sequential:
 
 def fit(model: tf.keras.Sequential, data: Data) -> tf.keras.Sequential:
     x_train, y_train, x_test, y_test = data
-    model.fit(x_train, y_train, epochs=1, verbose=1, validation_data=(x_test, y_test))
+    model.fit(x_train, y_train, epochs=EPOCHS, verbose=1, validation_data=(x_test, y_test))
     return model
 
 
@@ -146,7 +146,4 @@ def find_best_architecture_on_mnist() -> Architecture:
 
 
 if __name__ == '__main__':
-    arch = Architecture(n_neurons=32, dropout_rate=0.6)
-    show_architecture_on_fashion_mnist(arch)
-
-    # show_architecture_on_fashion_mnist(find_best_architecture_on_mnist())
+    show_architecture_on_fashion_mnist(find_best_architecture_on_mnist())
