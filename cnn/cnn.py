@@ -55,10 +55,45 @@ def architecture_gen():
             yield Architecture(n_neurons, dropout_rate)
 
 
-def display_matrix(y_true, y_pred):
-    display = ConfusionMatrixDisplay(confusion_matrix(y_true, y_pred), display_labels=LABELS_FASHION_MNIST.values())
+def display_confusion_matrix_default(y_true, y_pred):
+    display = ConfusionMatrixDisplay(confusion_matrix(y_true, y_pred),
+                                     display_labels=LABELS_FASHION_MNIST.values())
     fig = plt.figure(figsize=(14, 9))
     display.plot(ax=fig.add_subplot(111), values_format="d")
+    plt.show()
+
+
+def display_confusion_matrix_images(x, y_true, predicts):
+    probabilities = np.zeros((N_CLASSES, N_CLASSES))
+
+    res = -np.ones((N_CLASSES, N_CLASSES), dtype=int)
+    for it in range(predicts.shape[0]):
+        class_i = y_true[it]
+        class_j = np.argmax(predicts[it])
+        probability = predicts[it][class_j]
+        if probability > probabilities[class_i][class_j]:
+            probabilities[class_i][class_j] = probability
+            res[class_i][class_j] = it
+
+    fig = plt.figure(figsize=(N_CLASSES, N_CLASSES))
+
+    labels = LABELS_FASHION_MNIST.values()
+    ax = fig.add_subplot(111)
+    ax.set(xticks=np.arange(N_CLASSES),
+           yticks=np.arange(N_CLASSES),
+           xticklabels=labels,
+           yticklabels=labels,
+           ylabel="True label",
+           xlabel="Predicted label")
+    ax.set_ylim((N_CLASSES - 0.5, -0.5))
+
+    for i in range(N_CLASSES * N_CLASSES):
+        fig.add_subplot(N_CLASSES, N_CLASSES, i + 1)
+        plt.xticks([])
+        plt.yticks([])
+        x_idx = res[i // N_CLASSES][i % N_CLASSES]
+        if x_idx != -1:
+            plt.imshow(x[x_idx], cmap=plt.cm.binary)
     plt.show()
 
 
@@ -89,9 +124,13 @@ def show_architecture_on_fashion_mnist(architecture: Architecture):
 
     print("Running %s on Fashion-MNIST..." % str(architecture))
     model = fit(build_model(architecture), data)
-    y_pred = np.argmax(model.predict(data.x_test), axis=-1)
-    display_matrix(data.y_test, y_pred)
+
+    predicts = model.predict(data.x_test)
+    y_pred = np.argmax(predicts, axis=-1)
     print("Accuracy: %.6f" % accuracy_score(data.y_test, y_pred))
+
+    display_confusion_matrix_default(data.y_test, y_pred)
+    display_confusion_matrix_images(data.x_test, data.y_test, predicts)
 
 
 def run_architecture(architecture, data):
@@ -107,4 +146,7 @@ def find_best_architecture_on_mnist() -> Architecture:
 
 
 if __name__ == '__main__':
-    show_architecture_on_fashion_mnist(find_best_architecture_on_mnist())
+    arch = Architecture(n_neurons=32, dropout_rate=0.6)
+    show_architecture_on_fashion_mnist(arch)
+
+    # show_architecture_on_fashion_mnist(find_best_architecture_on_mnist())
