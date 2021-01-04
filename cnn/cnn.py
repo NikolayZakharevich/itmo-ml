@@ -50,8 +50,8 @@ def fix_data(data) -> Data:
 
 
 def architecture_gen():
-    for n_neurons in range(30, 32):
-        for dropout_rate in np.linspace(0.3, 0.7, 3):
+    for n_neurons in range(32, 33):
+        for dropout_rate in np.linspace(0.5, 0.7, 1):
             yield Architecture(n_neurons, dropout_rate)
 
 
@@ -69,11 +69,10 @@ def display_confusion_matrix_images(x, y_true, predicts):
     res = -np.ones((N_CLASSES, N_CLASSES), dtype=int)
     for it in range(predicts.shape[0]):
         class_i = y_true[it]
-        class_j = np.argmax(predicts[it])
-        probability = predicts[it][class_j]
-        if probability > probabilities[class_i][class_j]:
-            probabilities[class_i][class_j] = probability
-            res[class_i][class_j] = it
+        for class_j, probability in enumerate(predicts[it]):
+            if probability > probabilities[class_i][class_j]:
+                probabilities[class_i][class_j] = probability
+                res[class_i][class_j] = it
 
     fig = plt.figure(figsize=(N_CLASSES, N_CLASSES))
 
