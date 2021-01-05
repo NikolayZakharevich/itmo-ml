@@ -1,6 +1,5 @@
 import random
 from enum import Enum
-from itertools import permutations, takewhile
 from typing import List, Set, Tuple
 
 import matplotlib.pyplot as plt
@@ -181,17 +180,38 @@ def apply_mapping(values: List[int], mapping: List[int]) -> List[int]:
     return list(map(lambda x: np.where(np.array(mapping) == x)[0][0], values))
 
 
+def show_score_dependence(external_all, internal_all):
+    number_of_clusters_all = range(len(external_all))
+
+    external_all.reverse()
+    internal_all.reverse()
+    plt.xlabel('Number of clusters', fontsize=16)
+    plt.ylabel('Score', fontsize=16)
+    plt.title('Score dependence from number of clusters')
+    plt.plot(number_of_clusters_all, internal_all, label='Internal score')
+    plt.plot(number_of_clusters_all, external_all, label='External score')
+    plt.legend()
+    plt.show()
+
+
 # Main:
 
-def run_clustering(X):
+def run_clustering(X) -> List[int]:
     clustering_state = HierarchicalClustering(X)
-    while len(clustering_state.parents) > len(np.unique(y)):
-        clustering_state.next_iter()
+    n_clusters = len(np.unique(y))
+    external_all = []
+    internal_all = []
 
-    clusters = [clustering_state.find_set(x) for x in range(len(X))]
-    clustered_classes = list(max(permutations(np.unique(clusters)),
-                                 key=lambda mapping: calc_external_score(y, apply_mapping(clusters, mapping))))
-    return apply_mapping(clusters, clustered_classes)
+    current_y_clustered = []
+    while len(clustering_state.parents) > n_clusters:
+        clustering_state.next_iter()
+        clusters = [clustering_state.find_set(x) for x in range(len(X))]
+        current_y_clustered = apply_mapping(clusters, list(np.unique(clusters)))
+        external_all.append(100 * calc_external_score(y, current_y_clustered))
+        internal_all.append(calc_internal_score(X, current_y_clustered))
+
+    show_score_dependence(external_all, internal_all)
+    return current_y_clustered
 
 
 if __name__ == '__main__':
