@@ -11,7 +11,7 @@ Body = List[int]
 Is_Legit = int
 Message = Tuple[Subject, Body, Is_Legit]
 
-N_PARTS = 10
+N_PARTS = 2
 N_CLASSES = 2
 PREFIX_SUBJECT_STR_LENGTH = 9
 
@@ -29,28 +29,33 @@ def read_message(filename: str) -> Message:
 def read_messages(messages_dirname='messages/') -> List[Tuple[np.ndarray, np.ndarray]]:
     word_dict = {}
 
-    samples_cnt = 0
+    X_all = []
     y_all = []
+    samples_cnt_per_number = []
     for number in range(N_PARTS):
         y = []
         directory = messages_dirname + 'part' + str(number + 1)
 
+        samples_cnt = 0
         for i, filename in enumerate(os.listdir(directory)):
             subject_words, body_words, is_legit = read_message(directory + '/' + filename)
             y.append(is_legit)
-
             for ngram in get_message_ngram(subject_words, body_words):
                 ngram_hash = hash_ngram(ngram)
                 if ngram_hash not in word_dict:
-                    word_dict[ngram_hash] = set()
-                word_dict[ngram_hash].add((number, i))
+                    word_dict[ngram_hash] = [set() for _ in range(N_PARTS)]
+                word_dict[ngram_hash][number].add(i)
             samples_cnt += 1
-        y_all.append(np.array(y))
 
-    X_all = [np.zeros((samples_cnt, len(word_dict)), dtype=int)] * N_PARTS
-    for word_idx, word_messages_indexes in enumerate(word_dict.values()):
-        for number, word_message_idx in word_messages_indexes:
-            X_all[number][word_message_idx][word_idx] = 1
+        y_all.append(np.array(y))
+        samples_cnt_per_number.append(samples_cnt)
+
+    for number, samples_cnt in enumerate(samples_cnt_per_number):
+        X = np.zeros((samples_cnt, len(word_dict)), dtype=int)
+        for word_idx, word_messages_indexes in enumerate(word_dict.values()):
+            for word_message_idx in word_messages_indexes[number]:
+                X[word_message_idx][word_idx] = 1
+        X_all.append(X)
 
     return list(zip(X_all, y_all))
 
@@ -94,7 +99,7 @@ class NaiveBayesClassifier():
         return np.array(res) / sum
 
     def predict(self, X) -> List[List[float]]:
-        return np.vectorize(self.predict_sample)(X)
+        return np.vectorize(self.predict_sample)(X.tolist())
 
     def _calc_prior_probability(self, y):
         count_per_class = np.zeros(self.n_classes)
@@ -133,25 +138,20 @@ if __name__ == '__main__':
 
     clf = NaiveBayesClassifier(2, [lambda_spam, lambda_legit], alpha)
 
+    # k-fold cross validation
     for test_idx in range(N_PARTS):
         X_test, y_test = parts[test_idx]
 
-        X_train = np.array([])
-        y_train = np.array([])
+        X_train = []
+        y_train = []
         for train_idx in range(N_PARTS):
             if test_idx == train_idx:
                 continue
             X, y = parts[train_idx]
-            np.append(X_train, X)
-
-        print(X_train.shape, y_train.shape)
-        print(X_train[:2], y_train[:2])
-
-        print(X_test.shape, y_test.shape)
-        print(X_test[:2], y_test[:2])
+            X_train.extend(X)
+            y_train.extend(y)
+        X_train = np.array(X_train)
+        y_train = np.array(y_train)
 
         clf.fit(X_train, y_train)
-
         print(accuracy_score(y_test, clf.predict(X_test)))
-
-#
