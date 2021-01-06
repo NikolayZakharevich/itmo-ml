@@ -1,19 +1,49 @@
 import os
 import numpy as np
 from typing import Tuple, List
-from sklearn.metrics import accuracy_score
+from collections import deque
+from sklearn.metrics import accuracy_score, roc_curve, auc
+import matplotlib.pyplot as plt
 
-from ngram import get_message_ngram, hash_ngram
-
-# body
 Subject = List[int]
 Body = List[int]
 Is_Legit = int
 Message = Tuple[Subject, Body, Is_Legit]
 
+# words, size
+Words = List[int]
+Size = int
+NGram = Tuple[Words, Size]
+
+NGRAM_SIZE = 3
 N_PARTS = 2
 N_CLASSES = 2
 PREFIX_SUBJECT_STR_LENGTH = 9
+
+
+# NGram
+
+def hash_ngram(ngram: NGram) -> str:
+    return '_'.join(map(str, ngram[0]))
+
+
+def get_message_ngram(subject_words: List[int], body_words: List[int], n=NGRAM_SIZE) -> [NGram]:
+    last_words = deque()
+    for words in [subject_words, body_words]:
+        for i in range(len(words)):
+            last_words.append(words[i])
+            if i < n - 1:
+                continue
+            n_gram = deque_to_list(last_words)
+            last_words.popleft()
+            yield n_gram, n
+
+
+def deque_to_list(deq) -> List[int]:
+    res = []
+    for i in range(len(deq)):
+        res.append(deq[i])
+    return res
 
 
 # Read data
@@ -81,25 +111,34 @@ class NaiveBayesClassifier():
 
     def fit(self, X, y):
         self.prior_probability = self._calc_prior_probability(y)
+        # with open('likelihood.npy', 'rb') as f:
+        #     self.likelihood = np.load(f)
+
         self.likelihood = self._calc_likelihood(X, y)
+        with open('likelihood.npy', 'wb') as f:
+            np.save(f, self.likelihood)
 
-    def predict_sample(self, x) -> List[float]:
-        res = []
-        sum = 0
-        for class_idx in range(self.n_classes):
-            temp = 1
-            for feature_idx in range(len(x)):
-                prob = self.likelihood[class_idx][feature_idx]
-                if x[feature_idx] == 0:
-                    prob = 1 - prob
-                temp *= prob
-            temp *= (self.penalties[class_idx] * self.prior_probability[class_idx])
-            sum += temp
-            res.append(temp)
-        return np.array(res) / sum
+    def predict_sample_with_proba(self, x) -> Tuple[int, float]:
+        proba = list(map(lambda class_idx: self._bayes_formula(x, class_idx), range(self.n_classes)))
+        return np.argmax(proba), proba[0] / sum(proba)
 
-    def predict(self, X) -> List[List[float]]:
-        return np.vectorize(self.predict_sample)(X.tolist())
+    def predict_with_proba(self, X) -> Tuple[List[int], List[float]]:
+        predicts_with_proba = list(map(self.predict_sample_with_proba, X))
+        predicts = []
+        probas = []
+        for predict, proba in predicts_with_proba:
+            predicts.append(predict)
+            probas.append(proba)
+        return predicts, probas
+
+    def _bayes_formula(self, x, class_idx):
+        acc = 0
+        for feature_idx in range(len(x)):
+            prob = self.likelihood[class_idx][feature_idx]
+            if x[feature_idx] == 0:
+                prob = 1 - prob
+            acc += np.log(prob)
+        return np.log(self.penalties[class_idx] * self.prior_probability[class_idx]) + acc
 
     def _calc_prior_probability(self, y):
         count_per_class = np.zeros(self.n_classes)
@@ -129,14 +168,40 @@ class NaiveBayesClassifier():
         return res
 
 
+def show_roc_curve(y_true, y_score):
+    fpr, tpr, _ = roc_curve(y_true, y_score)
+    roc_auc = auc(fpr, tpr)
+
+    plt.figure()
+    lw = 2
+    plt.plot(fpr, tpr, color='darkorange',
+             lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)
+    plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.0])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('ROC-curve')
+    plt.legend(loc="lower right")
+    plt.show()
+
+
+def calc_false_negative(y_true, y_pred):
+    FN = 0
+    for i in range(len(y_true)):
+        if y_true[i] == 1 and y_pred[i] == 0:
+            FN += 1
+    return FN
+
+
 if __name__ == '__main__':
     parts = read_messages()
 
-    lambda_legit = 1
+    lambda_legit = 10000
     lambda_spam = 1
     alpha = 0.1
 
-    clf = NaiveBayesClassifier(2, [lambda_spam, lambda_legit], alpha)
+    clf = NaiveBayesClassifier(N_CLASSES, [lambda_spam, lambda_legit], alpha)
 
     # k-fold cross validation
     for test_idx in range(N_PARTS):
@@ -154,4 +219,8 @@ if __name__ == '__main__':
         y_train = np.array(y_train)
 
         clf.fit(X_train, y_train)
-        print(accuracy_score(y_test, clf.predict(X_test)))
+        y_pred, y_score = clf.predict_with_proba(X_test)
+
+        print("Accuracy: %.4f" % accuracy_score(y_test, y_pred))
+        show_roc_curve(y_test, y_score)
+        print("False negative: %d" % calc_false_negative(y_test, y_pred))
