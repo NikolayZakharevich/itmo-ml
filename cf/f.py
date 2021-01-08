@@ -1,4 +1,3 @@
-import numpy as np
 from typing import List
 
 Q = 2
@@ -18,7 +17,7 @@ def vectorize(messages: List[List[str]]):
                 word_dict[word] = set()
             word_dict[word].add(i)
 
-    X = np.zeros((len(messages), len(word_dict)), dtype=int)
+    X = [[0] * len(word_dict) for _ in range(len(messages))]
     for word_idx, word_messages_indexes in enumerate(word_dict.values()):
         for word_message_idx in word_messages_indexes:
             X[word_message_idx][word_idx] = 1
@@ -45,6 +44,9 @@ class NaiveBayesClassifier():
     def predict_sample(self, x) -> List[float]:
         res = []
         for class_idx1 in range(self.n_classes):
+            if self.prior_probability[class_idx1] == 0:
+                res.append(0)
+                continue
             denominator = 1
             for class_idx2 in range(self.n_classes):
                 if class_idx1 == class_idx2:
@@ -60,28 +62,28 @@ class NaiveBayesClassifier():
                     acc *= prob2 / prob1
                 denominator += acc
             res.append(1 / denominator)
-        return np.array(res)
+        return res
 
     def _calc_prior_probability(self, y):
-        count_per_class = np.zeros(self.n_classes)
+        count_per_class = [0] * self.n_classes
         for y_i in y:
             count_per_class[y_i] += 1
-        return count_per_class / sum(count_per_class)
+        return list(map(lambda x: x / len(y), count_per_class))
 
     def _calc_likelihood(self, X, y):
         n_samples = len(X)
         n_features = len(X[0])
 
-        samples_per_class = np.zeros(self.n_classes, dtype=int)
+        samples_per_class = [0] * self.n_classes
         for feature_idx in range(n_samples):
             samples_per_class[y[feature_idx]] += 1
 
-        features_per_class = np.zeros((self.n_classes, n_features), dtype=int)
+        features_per_class = [[0] * n_features for _ in range(self.n_classes)]
         for sample_idx in range(n_samples):
             for feature_idx in range(n_features):
                 features_per_class[y[sample_idx]][feature_idx] += X[sample_idx][feature_idx] == 1
 
-        res = np.zeros((self.n_classes, n_features))
+        res = [[0] * n_features for _ in range(self.n_classes)]
         for class_idx in range(self.n_classes):
             for feature_idx in range(n_features):
                 res[class_idx][feature_idx] = bernulli_with_laplace_smoothing(
@@ -111,7 +113,7 @@ if __name__ == '__main__':
 
     M = int(input())
     for _ in range(M):
-        x_test = np.zeros(n_features)
+        x_test = [0] * n_features
         for word in input().split()[1:]:
             feature_idx = feature_idx_map.get(word, -1)
             if feature_idx != -1:
