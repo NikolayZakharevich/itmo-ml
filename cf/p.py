@@ -9,16 +9,15 @@ if __name__ == '__main__':
     real = {}
     for _ in range(n):
         x, y = map(int, input().split())
-        real[(x - 1, y - 1)] = real.get((x - 1, y - 1), 0) + 1
-        row_sum[x - 1] += 1
-        col_sum[y - 1] += 1
-        all_sum += 1
+        x -= 1
+        y -= 1
+        real[(x, y)] = real.get((x, y), 0) + 1
+        row_sum[x] += 1
+        col_sum[y] += 1
 
-    print(real)
-    res = 0
-    for k, real_value in real.values():
+    res = n
+    for k in real:
         i, j = k
-        expected = row_sum[i] * col_sum[j] / all_sum
-        res += (real_value * expected) ** 2 / expected
-
+        expected = row_sum[i] * col_sum[j] / n
+        res += (real[k] - expected) ** 2 / expected - expected
     print(res)

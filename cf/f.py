@@ -44,21 +44,23 @@ class NaiveBayesClassifier():
 
     def predict_sample(self, x) -> List[float]:
         res = []
-        sum = 0
-        for class_idx in range(self.n_classes):
-            temp = 1
-            for feature_idx in range(len(x)):
-                prob = self.likelihood[class_idx][feature_idx]
-                if x[feature_idx] == 0:
-                    prob = 1 - prob
-                temp *= prob
-            temp *= (self.penalties[class_idx] * self.prior_probability[class_idx])
-            sum += temp
-            res.append(temp)
-        return np.array(res) / sum
-
-    def predict(self, X) -> List[List[float]]:
-        return np.vectorize(self.predict_sample)(X)
+        for class_idx1 in range(self.n_classes):
+            denominator = 1
+            for class_idx2 in range(self.n_classes):
+                if class_idx1 == class_idx2:
+                    continue
+                acc = self.penalties[class_idx2] / self.penalties[class_idx1]
+                acc *= self.prior_probability[class_idx2] / self.prior_probability[class_idx1]
+                for feature_idx in range(len(x)):
+                    prob1 = self.likelihood[class_idx1][feature_idx]
+                    prob2 = self.likelihood[class_idx2][feature_idx]
+                    if x[feature_idx] == 0:
+                        prob1 = 1 - prob1
+                        prob2 = 1 - prob2
+                    acc *= prob2 / prob1
+                denominator += acc
+            res.append(1 / denominator)
+        return np.array(res)
 
     def _calc_prior_probability(self, y):
         count_per_class = np.zeros(self.n_classes)
