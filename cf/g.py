@@ -87,13 +87,17 @@ def learn_d3(u_begin, u_end, depth):
 
 def calc_sum_delta(classes_cnt, sample_idx, inc=True):
     sample_y = y(sample_idx)
-    old_cnt_squared = classes_cnt[sample_y] ** 2
-    classes_cnt[sample_y] += 1 if inc else -1
-    return classes_cnt[sample_y] ** 2 - old_cnt_squared
+    old_cnt = classes_cnt[sample_y]
+    if inc:
+        classes_cnt[sample_y] += 1
+        return 2 * old_cnt + 1
+    else:
+        classes_cnt[sample_y] -= 1
+        return -2 * old_cnt + 1
 
 
 def split(u_begin, u_end):
-    best_score, best_mid_idx, best_feature_idx = 0, 0, 0
+    best_score, best_mid_idx, best_feature_idx = 4e18, 0, 0
     for feature_idx in range(n_features):
         X_y[u_begin:u_end] = sorted(X_y[u_begin:u_end], key=lambda x: x[feature_idx])
         left_cnt = [0] * (n_classes + 1)
@@ -104,8 +108,10 @@ def split(u_begin, u_end):
 
         for sample_idx in range(u_begin, u_end):
             if sample_idx != u_begin:
-                score = left_sum / (sample_idx - u_begin) + right_sum / (u_end - sample_idx)
-                if score > best_score:
+                l = sample_idx - u_begin
+                r = u_end - sample_idx
+                score = 1 / l - left_sum / l  + 1 / r - right_sum / r
+                if score < best_score:
                     best_score, best_mid_idx, best_feature_idx = score, sample_idx, feature_idx
             left_sum += calc_sum_delta(left_cnt, sample_idx)
             right_sum += calc_sum_delta(right_cnt, sample_idx, False)
